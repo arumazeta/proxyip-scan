@@ -288,8 +288,8 @@ if (cluster.isPrimary) {
                 if (socket) {
                     socket.destroy();
                 }
-                reject(new Error("Request timeout after 5s"));
-            }, 5000);
+                reject(new Error("Request timeout after 8s"));
+            }, 8000);
 
             const socket = tls.connect({
                 host,
