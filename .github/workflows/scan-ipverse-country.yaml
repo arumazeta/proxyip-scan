@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       country:
-        description: 'Kode negara (ISO 3166-1 alpha-2, contoh: id, sg, us)'
+        description: 'Kode negara (bisa banyak, pisah koma/spasi. Contoh: id, sg, us)'
         required: true
         default: 'id'
         type: string
@@ -13,7 +13,7 @@ jobs:
   scan:
     strategy:
       matrix:
-        port: [80, 8080, 8880, 2052, 2082, 2086, 2095, 443, 2053, 2083, 2087, 2096, 8443]
+        port: [80, 8080, 8880, 2052, 2082, 2086, 2095, 443, 2053, 2083, 2087, 2096, 8443, 12137, 8900]
 
     runs-on: ubuntu-24.04
 
@@ -30,14 +30,19 @@ jobs:
 
       - name: Download IP list
         env:
-          COUNTRY: ${{ inputs.country }}
+          COUNTRY_INPUT: ${{ inputs.country }}
         run: |
-          COUNTRY="${COUNTRY,,}"
+          > iplist.txt
+          for CC in $(echo "$COUNTRY_INPUT" | tr ',' ' '); do
+            CC="${CC,,}"
+            echo "Mengambil prefix negara: ${CC}..."
+            curl -fsSL "https://raw.githubusercontent.com/ipverse/country-ip-blocks/refs/heads/master/country/${CC}/aggregated.json" \
+              | jq -r '.prefixes.ipv4[]?' >> iplist.txt || echo "Negara ${CC} gagal diunduh"
+          done
 
-          curl -fsSL \
-            "https://raw.githubusercontent.com/ipverse/country-ip-blocks/refs/heads/master/country/${COUNTRY}/aggregated.json" \
-            | jq -r '.prefixes.ipv4[]' \
-            > iplist.txt
+          sed -i '/^$/d' iplist.txt
+          sort -u iplist.txt -o iplist.txt
+          echo "Total prefix: $(wc -l < iplist.txt)"
 
       - name: Scan
         run: |
@@ -45,7 +50,9 @@ jobs:
             -p${{ matrix.port }} \
             -iL iplist.txt \
             --excludefile exclude.txt \
-            --rate 80000 \
+            --rate 20000 \
+            --retries 2 \
+            --wait 7 \
             2>/dev/null \
             | bun check.js
 
